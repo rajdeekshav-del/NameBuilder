@@ -1,0 +1,1269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>NameBuilder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Nunito:wght@700;800;900&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+<style>
+/* ═══════════════════════════════════════════════
+   DESIGN TOKENS — Neon Green · Pink · Orange · B&W
+═══════════════════════════════════════════════ */
+:root {
+  --paper:    #FFFFFF;           /* pure white */
+  --paper2:   #F0F0F0;           /* light grey surface */
+  --ink:      #0A0A0A;           /* near-black */
+  --neon:     #AAFF00;           /* neon lime-green */
+  --pink:     #FF2D78;           /* hot pink */
+  --orange:   #FF6A00;           /* vivid orange */
+  --white:    #FFFFFF;
+  --grey:     #D4D4D4;           /* mid grey for subtle elements */
+  --disp:     'Archivo Black', sans-serif;
+  --body:     'Nunito', sans-serif;
+  --border:   3px solid var(--ink);
+  --shadow:   5px 5px 0 var(--ink);
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  width: 100%; height: 100%;
+  font-family: var(--body);
+  background: var(--paper);
+  color: var(--ink);
+  overflow: hidden;
+  user-select: none;
+}
+
+/* Grain texture overlay — like the reference image */
+body::after {
+  content: '';
+  position: fixed; inset: 0;
+  pointer-events: none; z-index: 9999;
+  opacity: .035;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 256px 256px;
+}
+
+/* ─── SCREENS ────────────────────────────────────────── */
+.screen {
+  position: fixed; inset: 0;
+  opacity: 0; pointer-events: none;
+  transition: opacity .45s ease; z-index: 1;
+}
+.screen.active { opacity: 1; pointer-events: all; z-index: 10; }
+
+/* ═══════════════════════════════════════════════
+   LOADING SCREEN
+═══════════════════════════════════════════════ */
+#s-load {
+  background: var(--ink);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 2.5rem;
+}
+/* Big blob shapes behind logo */
+#s-load::before {
+  content: '';
+  position: absolute; width: 340px; height: 340px;
+  background: var(--orange);
+  border-radius: 60% 40% 55% 45% / 50% 60% 40% 50%;
+  top: 50%; left: 50%; transform: translate(-70%, -60%);
+  opacity: .35;
+}
+#s-load::after {
+  content: '';
+  position: absolute; width: 280px; height: 280px;
+  background: var(--pink);
+  border-radius: 40% 60% 45% 55% / 60% 40% 60% 40%;
+  top: 50%; left: 50%; transform: translate(10%, -30%);
+  opacity: .3;
+}
+.load-logo {
+  position: relative; z-index: 1;
+  font-family: var(--disp);
+  font-size: clamp(3rem, 9vw, 6rem);
+  color: var(--white);
+  letter-spacing: -.02em; line-height: 1;
+  text-align: center;
+}
+.load-logo b { color: var(--neon); }
+.load-track {
+  position: relative; z-index: 1;
+  width: min(280px, 55vw); height: 14px;
+  background: rgba(255,255,255,.12);
+  border-radius: 999px;
+  border: 2px solid rgba(255,255,255,.2);
+  overflow: hidden;
+}
+.load-fill {
+  height: 100%; width: 0%;
+  background: var(--neon);
+  border-radius: 999px;
+  transition: width .3s ease;
+}
+.load-msg {
+  position: relative; z-index: 1;
+  font-family: var(--body); font-size: .8rem; font-weight: 700;
+  letter-spacing: .15em; text-transform: uppercase;
+  color: rgba(255,255,255,.4);
+}
+
+/* ═══════════════════════════════════════════════
+   START SCREEN
+═══════════════════════════════════════════════ */
+#s-start {
+  background: var(--paper);
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+}
+/* Blob decorations — organic shapes like the inspo */
+.blob {
+  position: absolute;
+  border: var(--border);
+  pointer-events: none;
+}
+.blob-1 {
+  width: 260px; height: 240px; background: var(--neon);
+  border-radius: 65% 35% 50% 50% / 40% 60% 40% 60%;
+  top: -60px; left: -60px;
+  animation: blobFloat 5s ease-in-out infinite alternate;
+}
+.blob-2 {
+  width: 200px; height: 200px; background: var(--pink);
+  border-radius: 40% 60% 35% 65% / 60% 40% 60% 40%;
+  bottom: -50px; right: -40px;
+  animation: blobFloat 6s ease-in-out infinite alternate-reverse;
+}
+.blob-3 {
+  width: 140px; height: 130px; background: var(--orange);
+  border-radius: 50% 50% 30% 70% / 60% 40% 60% 40%;
+  top: 15%; right: 8%;
+  animation: blobFloat 4s ease-in-out infinite alternate;
+}
+.blob-4 {
+  width: 110px; height: 120px; background: var(--ink);
+  border-radius: 40% 60% 60% 40% / 40% 60% 40% 60%;
+  bottom: 18%; left: 6%;
+  animation: blobFloat 7s ease-in-out infinite alternate-reverse;
+}
+@keyframes blobFloat {
+  from { transform: translateY(0) rotate(0deg); }
+  to   { transform: translateY(-14px) rotate(4deg); }
+}
+
+/* Animated background letter */
+.s-bg-ltr {
+  position: absolute;
+  font-family: var(--disp);
+  font-size: 72vw; color: var(--paper2);
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none; line-height: 1;
+  letter-spacing: -.05em;
+}
+.s-content {
+  position: relative; z-index: 2;
+  display: flex; flex-direction: column;
+  align-items: center; text-align: center; gap: 1.4rem;
+  max-width: 520px; padding: 2rem;
+}
+.s-tag {
+  font-family: var(--body); font-size: .75rem; font-weight: 900;
+  letter-spacing: .15em; text-transform: uppercase;
+  background: var(--neon); color: var(--ink);
+  padding: .35rem 1rem; border-radius: 999px;
+  border: var(--border); box-shadow: 3px 3px 0 var(--ink);
+  display: inline-block;
+}
+.s-h1 {
+  font-family: var(--disp);
+  font-size: clamp(2.8rem, 7.5vw, 5.5rem);
+  line-height: 1; letter-spacing: -.03em; color: var(--ink);
+}
+.s-h1 em { color: var(--pink); font-style: normal; }
+.s-sub {
+  font-size: 1rem; font-weight: 700; color: #555;
+  line-height: 1.65; max-width: 360px;
+}
+.btn-begin {
+  font-family: var(--disp); font-size: 1.1rem;
+  background: var(--ink); color: var(--neon);
+  border: var(--border); box-shadow: 5px 5px 0 var(--neon);
+  padding: .85rem 2.6rem; border-radius: 999px;
+  cursor: pointer; transition: transform .1s, box-shadow .1s;
+  margin-top: .4rem; letter-spacing: -.01em;
+}
+.btn-begin:hover  { transform: translate(-2px,-2px); box-shadow: 7px 7px 0 var(--neon); }
+.btn-begin:active { transform: translate(3px,3px);   box-shadow: 2px 2px 0 var(--neon); }
+
+/* ═══════════════════════════════════════════════
+   CAMERA SCREEN
+═══════════════════════════════════════════════ */
+#s-cam {
+  display: flex; flex-direction: column;
+  background: var(--ink);
+}
+
+/* ── TOP BAR ── */
+.top-bar {
+  flex-shrink: 0; height: 60px;
+  background: var(--ink);
+  border-bottom: 3px solid var(--neon);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 1.4rem; z-index: 20;
+}
+.top-logo {
+  font-family: var(--disp); font-size: 1.15rem;
+  color: var(--white); letter-spacing: -.02em;
+}
+.top-logo b { color: var(--neon); }
+.top-status {
+  display: flex; align-items: center; gap: .5rem;
+  font-family: var(--body); font-size: .75rem; font-weight: 800;
+  letter-spacing: .08em; text-transform: uppercase; color: rgba(255,255,255,.5);
+}
+.status-dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--neon); border: 2px solid var(--ink);
+  animation: dotPulse 2s ease-in-out infinite;
+}
+@keyframes dotPulse { 0%,100%{opacity:1;} 50%{opacity:.25;} }
+
+/* ── MAIN LAYOUT ── */
+.cam-row { flex: 1; min-height: 0; display: flex; }
+
+/* Video panel */
+.v-panel {
+  flex: 1; position: relative;
+  overflow: hidden; background: #000;
+}
+#video {
+  width: 100%; height: 100%;
+  object-fit: cover; transform: scaleX(-1);
+}
+#ovl {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%; pointer-events: none;
+}
+/* Hidden canvas for optical-flow wave detection */
+#wave-canvas { display: none; }
+
+/* Instruction bar */
+.instr-wrap {
+  position: absolute; top: 0; left: 0; right: 0;
+  padding: 1rem 1.5rem 2.5rem;
+  background: linear-gradient(to bottom, rgba(0,0,0,.7) 0%, transparent 100%);
+  pointer-events: none;
+}
+.instr-txt {
+  font-family: var(--body); font-size: 1.05rem; font-weight: 800;
+  color: #fff; text-align: center; line-height: 1.4;
+}
+
+/* Detected object pill */
+.det-pill {
+  position: absolute;
+  top: 40%; left: 50%; transform: translate(-50%, -50%);
+  background: var(--neon); color: var(--ink);
+  font-family: var(--disp); font-size: .95rem;
+  padding: .5rem 1.4rem; border-radius: 999px;
+  border: var(--border); box-shadow: var(--shadow);
+  white-space: nowrap;
+  opacity: 0; transition: opacity .2s; pointer-events: none;
+}
+.det-pill.show { opacity: 1; }
+
+/* Hold ring */
+.hold-wrap {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex; flex-direction: column;
+  align-items: center; gap: .6rem;
+  opacity: 0; transition: opacity .3s; pointer-events: none;
+}
+.hold-wrap.show { opacity: 1; }
+.h-svg { transform: rotate(-90deg); }
+.h-bg { fill: none; stroke: rgba(255,255,255,.2); stroke-width: 6; }
+.h-fg {
+  fill: none; stroke: var(--neon); stroke-width: 6;
+  stroke-linecap: round;
+  stroke-dasharray: 282.7; stroke-dashoffset: 282.7;
+  transition: stroke-dashoffset .1s linear;
+}
+.h-lbl {
+  font-family: var(--body); font-weight: 800; color: var(--neon);
+  font-size: .85rem; letter-spacing: .05em;
+  text-shadow: 0 0 12px rgba(170,255,0,.6);
+}
+
+/* ── WAVE OVERLAY ── */
+.wave-ovr {
+  position: absolute; inset: 0; z-index: 25;
+  background: rgba(10,10,10,.92);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 1.2rem;
+  opacity: 0; pointer-events: none; transition: opacity .3s;
+}
+.wave-ovr.show { opacity: 1; }
+.wave-emoji {
+  font-size: 5rem; line-height: 1;
+  animation: waveAnim .55s ease-in-out infinite alternate;
+  transform-origin: 75% 80%;
+}
+@keyframes waveAnim { from{transform:rotate(-18deg);} to{transform:rotate(18deg);} }
+.wave-h {
+  font-family: var(--disp); font-size: clamp(2rem, 5vw, 3.2rem);
+  color: var(--neon); text-align: center; line-height: 1.05;
+  letter-spacing: -.02em;
+  text-shadow: 0 0 20px rgba(170,255,0,.5);
+}
+.wave-sub {
+  font-family: var(--body); font-size: .9rem; font-weight: 700;
+  color: rgba(255,255,255,.45);
+}
+.wr-svg { transform: rotate(-90deg); margin-top: .3rem; }
+.wr-bg { fill: none; stroke: rgba(255,255,255,.08); stroke-width: 7; }
+.wr-fg {
+  fill: none; stroke: var(--pink); stroke-width: 7; stroke-linecap: round;
+  stroke-dasharray: 251.2; stroke-dashoffset: 251.2;
+  transition: stroke-dashoffset .1s linear;
+}
+
+/* ── LETTER BAR ── */
+.letter-bar {
+  position: absolute; bottom: 0; left: 0; right: 0; z-index: 20;
+  min-height: 76px;
+  background: var(--ink);
+  border-top: 3px solid var(--neon);
+  padding: .8rem 1.2rem;
+  display: flex; align-items: center;
+  flex-wrap: wrap; gap: 0 1px;
+}
+.bar-ltr {
+  font-family: var(--disp); font-size: 2.3rem;
+  line-height: 1;
+  animation: lPop .38s cubic-bezier(.34,1.56,.64,1) both;
+}
+.bar-ltr:nth-child(3n+1) { color: var(--neon); }
+.bar-ltr:nth-child(3n+2) { color: var(--pink); }
+.bar-ltr:nth-child(3n+3) { color: var(--orange); }
+@keyframes lPop {
+  from { opacity:0; transform: translateY(14px) scale(.35) rotate(-10deg); }
+  to   { opacity:1; transform: none; }
+}
+.bar-cursor {
+  display: inline-block; width: 3px; height: 2.2rem;
+  background: var(--neon); border-radius: 2px;
+  animation: blink .9s step-end infinite; flex-shrink: 0;
+  box-shadow: 0 0 8px var(--neon);
+}
+@keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0;} }
+
+/* Camera flash */
+.cam-flash {
+  position: absolute; inset: 0;
+  background: var(--neon); opacity: 0; pointer-events: none; z-index: 30;
+}
+.cam-flash.go { animation: fl .4s ease-out forwards; }
+@keyframes fl { 0%{opacity:.7;} 100%{opacity:0;} }
+
+/* ── RIGHT SIDEBAR ── */
+.r-panel {
+  width: 185px; flex-shrink: 0;
+  background: var(--ink);
+  border-left: 3px solid var(--neon);
+  display: flex; flex-direction: column;
+}
+.r-head {
+  padding: .8rem 1rem;
+  border-bottom: 3px solid var(--neon);
+  background: var(--neon);
+  display: flex; align-items: center; gap: .5rem;
+}
+.r-head-lbl {
+  font-family: var(--disp); font-size: .85rem;
+  color: var(--ink); flex: 1;
+}
+.r-count {
+  background: var(--ink); color: var(--neon);
+  font-family: var(--disp); font-size: .7rem;
+  width: 22px; height: 22px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  border: 2px solid var(--ink);
+  opacity: 0; transition: opacity .2s;
+}
+.r-count.show { opacity: 1; }
+.r-scroll {
+  flex: 1; overflow-y: auto; padding: .6rem;
+  display: flex; flex-direction: column; gap: 7px;
+}
+.r-scroll::-webkit-scrollbar { width: 0; }
+
+.snap {
+  position: relative; border-radius: 10px;
+  overflow: hidden; aspect-ratio: 1; flex-shrink: 0;
+  border: 2px solid var(--neon); box-shadow: 3px 3px 0 var(--neon);
+  animation: snapIn .35s cubic-bezier(.34,1.56,.64,1) forwards;
+}
+@keyframes snapIn {
+  from { opacity:0; transform: scale(.55) rotate(-7deg); }
+  to   { opacity:1; transform: none; }
+}
+.snap img { width:100%; height:100%; object-fit:cover; display:block; }
+.snap-badge {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,.4);
+}
+.snap-ltr {
+  font-family: var(--disp); font-size: 2.5rem;
+  color: var(--neon);
+  text-shadow: 0 0 12px rgba(170,255,0,.6);
+}
+
+/* Wave hint */
+.wave-hint-bar {
+  flex-shrink: 0; padding: .65rem .8rem;
+  border-top: 3px solid var(--neon);
+  text-align: center;
+  font-family: var(--body); font-size: .72rem; font-weight: 800;
+  color: var(--ink); background: var(--neon);
+  letter-spacing: .05em; text-transform: uppercase;
+  opacity: 0; transition: opacity .4s;
+}
+.wave-hint-bar.show { opacity: 1; }
+
+/* ═══════════════════════════════════════════════
+   GOODBYE SCREEN
+   Off-white paper background, bold shapes, full
+   name spelled out with photos below each letter
+═══════════════════════════════════════════════ */
+.goodbye-ovr {
+  position: fixed; inset: 0; z-index: 50;
+  background: var(--ink);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: flex-start;
+  padding: 2rem 2rem 3rem; gap: 0;
+  overflow-y: auto;
+  opacity: 0; pointer-events: none;
+  transition: opacity .55s ease;
+}
+.goodbye-ovr.show { opacity: 1; pointer-events: all; }
+
+/* Blob decorations on goodbye screen */
+.bye-blob-1 {
+  position: fixed; width: 300px; height: 280px;
+  background: var(--neon);
+  border-radius: 55% 45% 40% 60% / 50% 60% 40% 50%;
+  top: -80px; right: -60px;
+  border: var(--border); pointer-events: none;
+  animation: blobFloat 5s ease-in-out infinite alternate;
+  opacity: .15;
+}
+.bye-blob-2 {
+  position: fixed; width: 220px; height: 210px;
+  background: var(--pink);
+  border-radius: 40% 60% 55% 45% / 60% 40% 60% 40%;
+  bottom: -60px; left: -40px;
+  border: var(--border); pointer-events: none;
+  animation: blobFloat 6s ease-in-out infinite alternate-reverse;
+  opacity: .2;
+}
+.bye-blob-3 {
+  position: fixed; width: 130px; height: 125px;
+  background: var(--orange);
+  border-radius: 60% 40% 50% 50% / 40% 60% 40% 60%;
+  bottom: 20%; right: 3%;
+  border: var(--border); pointer-events: none;
+  animation: blobFloat 4s ease-in-out infinite alternate;
+  opacity: .18;
+}
+
+.bye-top {
+  position: relative; z-index: 1;
+  display: flex; flex-direction: column;
+  align-items: center; gap: .6rem;
+  margin-bottom: 1.2rem;
+}
+.bye-wave-emoji {
+  font-size: 3.8rem; line-height: 1;
+  animation: waveHand .65s ease-in-out infinite alternate;
+  transform-origin: 70% 80%;
+}
+@keyframes waveHand {
+  from { transform: rotate(-14deg); }
+  to   { transform: rotate(18deg); }
+}
+.bye-goodbye-word {
+  font-family: var(--disp);
+  font-size: clamp(3rem, 8vw, 6.5rem);
+  color: var(--white); line-height: .95;
+  letter-spacing: -.04em;
+}
+
+/* Spelled name — neon/pink/orange rotating */
+.bye-name-row {
+  display: flex; flex-wrap: wrap;
+  gap: 4px; justify-content: center; align-items: flex-end;
+  margin-bottom: .4rem;
+}
+.bye-name-ltr {
+  font-family: var(--disp);
+  font-size: clamp(4rem, 11vw, 9rem);
+  line-height: .9; letter-spacing: -.04em;
+  animation: byeLetterIn .5s cubic-bezier(.34,1.56,.64,1) both;
+}
+@keyframes byeLetterIn {
+  from { opacity:0; transform: scale(.2) rotate(-20deg); }
+  to   { opacity:1; transform: none; }
+}
+.bye-name-ltr:nth-child(3n+1) { color: var(--neon);   text-shadow: 0 0 24px rgba(170,255,0,.4); }
+.bye-name-ltr:nth-child(3n+2) { color: var(--pink);   text-shadow: 0 0 24px rgba(255,45,120,.4); }
+.bye-name-ltr:nth-child(3n+3) { color: var(--orange); text-shadow: 0 0 24px rgba(255,106,0,.4); }
+
+/* Divider */
+.bye-divider {
+  width: 100px; height: 4px;
+  background: var(--neon);
+  border-radius: 2px;
+  box-shadow: 0 0 12px rgba(170,255,0,.5);
+  margin: .8rem 0 1.2rem;
+}
+
+/* Photo cards */
+.bye-strip {
+  position: relative; z-index: 1;
+  display: flex; flex-wrap: wrap;
+  gap: 14px; justify-content: center;
+  width: 100%; max-width: 980px;
+}
+.bye-card {
+  display: flex; flex-direction: column;
+  align-items: center; gap: 7px;
+  animation: byeCardIn .5s cubic-bezier(.34,1.56,.64,1) both;
+}
+@keyframes byeCardIn {
+  from { opacity:0; transform: translateY(26px) scale(.7) rotate(-5deg); }
+  to   { opacity:1; transform: none; }
+}
+.bye-photo-wrap {
+  position: relative;
+  width: clamp(72px, 10.5vw, 115px);
+  aspect-ratio: 1;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 3px solid var(--neon);
+  box-shadow: 4px 4px 0 var(--neon);
+}
+.bye-card:nth-child(3n+1) .bye-photo-wrap { border-color: var(--neon);   box-shadow: 4px 4px 0 var(--neon); }
+.bye-card:nth-child(3n+2) .bye-photo-wrap { border-color: var(--pink);   box-shadow: 4px 4px 0 var(--pink); }
+.bye-card:nth-child(3n+3) .bye-photo-wrap { border-color: var(--orange); box-shadow: 4px 4px 0 var(--orange); }
+
+.bye-photo { width:100%; height:100%; object-fit:cover; display:block; }
+
+.bye-ltr {
+  font-family: var(--disp);
+  font-size: clamp(1.8rem, 4vw, 3rem);
+  line-height: 1;
+}
+.bye-card:nth-child(3n+1) .bye-ltr { color: var(--neon); }
+.bye-card:nth-child(3n+2) .bye-ltr { color: var(--pink); }
+.bye-card:nth-child(3n+3) .bye-ltr { color: var(--orange); }
+
+.bye-obj {
+  font-family: var(--body); font-size: .65rem; font-weight: 800;
+  background: var(--white); color: var(--ink);
+  padding: 2px 9px; border-radius: 999px;
+  letter-spacing: .06em; text-transform: uppercase;
+}
+
+/* Footer countdown */
+.bye-footer {
+  position: relative; z-index: 1;
+  display: flex; flex-direction: column;
+  align-items: center; gap: .35rem;
+  margin-top: 1.8rem;
+}
+.bye-restart-msg {
+  font-family: var(--body); font-size: .8rem; font-weight: 800;
+  color: #888; display: flex; align-items: center; gap: .5rem;
+  letter-spacing: .06em; text-transform: uppercase;
+}
+.bye-pulse {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--red); border: 2px solid var(--ink);
+  animation: dotPulse 1s ease-in-out infinite;
+}
+.bye-timer {
+  font-family: var(--disp); font-size: 2.2rem;
+  color: var(--red); letter-spacing: -.02em;
+}
+/* ── UNRECOGNISED OBJECT PILL ── */
+/* Shown when COCO detects something but it's not in our list */
+.bad-pill {
+  position: absolute;
+  bottom: 90px; left: 50%; transform: translateX(-50%);
+  background: var(--ink); color: var(--paper);
+  font-family: var(--body); font-size: .9rem; font-weight: 800;
+  padding: .6rem 1.5rem; border-radius: 999px;
+  border: 2.5px solid var(--ink);
+  box-shadow: 4px 4px 0 var(--red);
+  white-space: nowrap; text-align: center;
+  opacity: 0; transition: opacity .25s; pointer-events: none;
+  z-index: 22;
+}
+.bad-pill.show { opacity: 1; }
+.bad-pill strong { color: var(--yellow); }
+</style>
+</head>
+<body>
+
+<!-- ════ LOADING ════ -->
+<div class="screen active" id="s-load">
+  <div class="load-logo">Name<b>Builder</b></div>
+  <div class="load-track"><div class="load-fill" id="load-fill"></div></div>
+  <div class="load-msg" id="load-msg">Loading AI…</div>
+</div>
+
+<!-- ════ START ════ -->
+<div class="screen" id="s-start">
+  <div class="s-bg-ltr" id="bg-ltr">A</div>
+  <!-- Blob shapes -->
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+  <div class="blob blob-3"></div>
+  <div class="blob blob-4"></div>
+  <div class="s-content">
+    <span class="s-tag">Object · Vision · Alphabet</span>
+    <h1 class="s-h1">Spell your<br><em>name</em> with<br>objects.</h1>
+    <p class="s-sub">Show objects to the camera — each one becomes a letter. Wave your hand to finish.</p>
+    <button class="btn-begin" id="btn-begin">Let's Go →</button>
+  </div>
+</div>
+
+<!-- ════ CAMERA ════ -->
+<div class="screen" id="s-cam">
+
+  <div class="top-bar">
+    <div class="top-logo">Name<b>Builder</b></div>
+    <div class="top-status">
+      <div class="status-dot"></div>
+      <span id="status-lbl">Ready</span>
+    </div>
+  </div>
+
+  <div class="cam-row">
+    <!-- Video panel -->
+    <div class="v-panel">
+      <video id="video" autoplay playsinline muted></video>
+      <canvas id="ovl"></canvas>
+      <!-- Hidden canvases for wave optical flow -->
+      <canvas id="wave-canvas"></canvas>
+
+      <div class="instr-wrap">
+        <div class="instr-txt" id="instr">Hold up an object from the table</div>
+      </div>
+
+      <div class="det-pill" id="det-pill"></div>
+
+      <!-- Unrecognised object prompt -->
+      <div class="bad-pill" id="bad-pill">Hmm… try a different object! 🤔</div>
+
+      <div class="hold-wrap" id="hold-wrap">
+        <svg class="h-svg" width="100" height="100" viewBox="0 0 100 100">
+          <circle class="h-bg" cx="50" cy="50" r="45"/>
+          <circle class="h-fg" id="h-fg" cx="50" cy="50" r="45"/>
+        </svg>
+        <div class="h-lbl" id="h-lbl">Hold steady…</div>
+      </div>
+
+      <!-- Wave overlay — only shown when real wave detected -->
+      <div class="wave-ovr" id="wave-ovr">
+        <div class="wave-emoji">👋</div>
+        <div class="wave-h">Keep waving — both hands!</div>
+        <div class="wave-sub">Wave both hands until the ring fills</div>
+        <svg class="wr-svg" width="74" height="74" viewBox="0 0 74 74">
+          <circle class="wr-bg" cx="37" cy="37" r="30"/>
+          <circle class="wr-fg" id="wr-fg" cx="37" cy="37" r="30"/>
+        </svg>
+      </div>
+
+      <div class="cam-flash" id="cam-flash"></div>
+
+      <div class="letter-bar" id="letter-bar">
+        <div class="bar-cursor"></div>
+      </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="r-panel">
+      <div class="r-head">
+        <div class="r-head-lbl">Captured</div>
+        <div class="r-count" id="r-count">0</div>
+      </div>
+      <div class="r-scroll" id="r-scroll"></div>
+      <div class="wave-hint-bar" id="wave-hint-bar">👋 Wave both hands to finish 👋</div>
+    </div>
+  </div>
+
+  <!-- Goodbye overlay (on top of camera screen) -->
+  <div class="goodbye-ovr" id="goodbye-ovr">
+    <div class="bye-blob-1"></div>
+    <div class="bye-blob-2"></div>
+    <div class="bye-blob-3"></div>
+    <div class="bye-top">
+      <div class="bye-wave-emoji">👋</div>
+      <div class="bye-goodbye-word">Goodbye,</div>
+      <div class="bye-name-row" id="bye-name-row"></div>
+    </div>
+    <div class="bye-divider"></div>
+    <div class="bye-strip" id="bye-strip"></div>
+    <div class="bye-footer">
+      <div class="bye-restart-msg">
+        <span class="bye-pulse"></span>Starting again in
+      </div>
+      <div class="bye-timer" id="bye-timer">6</div>
+    </div>
+  </div>
+
+</div><!-- /s-cam -->
+
+<script>
+/* ══════════════════════════════════════════════════
+   OBJECT → LETTER MAP
+══════════════════════════════════════════════════ */
+/*
+  COCO-SSD class → letter mapping.
+  Only these 26 specific objects are accepted.
+  Anything else triggers the "try another object" message.
+
+  Your object list          → closest COCO-SSD class
+  ─────────────────────────────────────────────────
+  A  Apple                  → apple
+  B  Binder Notebook        → book
+  C  Cup                    → cup
+  D  Domino Box             → remote  (small flat rectangular box)
+  E  Elephant Toy           → teddy bear  (soft toy)
+  F  Dental Floss           → sports ball  (small round container)
+  G  Sunglasses             → glasses (not in COCO — use tie as proxy for thin object)
+  H  Headphones             → headphones (not in COCO-SSD but sometimes detected via earphones/tv)
+  I  University ID Card     → book  (flat card — but book is already B, use laptop as flat-rect proxy)
+  J  Fish Oil Jar           → bottle
+  K  Electric Kettle        → toaster  (small kitchen appliance)
+  L  Green Porous Object    → orange  (small round object)
+  M  Computer Mouse         → mouse
+  N  Newspaper              → newspaper / laptop  (flat paper sheet)
+  O  Oven Mitt              → baseball glove  (hand-shaped mitten)
+  P  Pencil                 → baseball bat  (long thin stick)
+  Q  Cotton Swab            → toothbrush  (small stick with tip)
+  R  Remote Control         → remote
+  S  Scissors               → scissors
+  T  Tablets (pills)        → frisbee  (small round flat objects — bowl also works)
+  U  Umbrella               → umbrella
+  V  Vase                   → vase
+  W  USB-C Wires            → kite  (tangled cord — best available)
+  X  Xylophone              → keyboard  (keyed musical/typing instrument)
+  Y  Yarn Ball              → sports ball  (round ball of material)
+  Z  Zip Ties               → tie
+
+  NOTE: Several objects don't exist in COCO-SSD's 80 classes.
+  We use the nearest visual proxy. Objects COCO can't detect
+  will fall through to the "try another object" message.
+*/
+const OBJ_MAP = {
+  /* A — Apple */
+  'apple':          'A',
+  /* B — Binder Notebook */
+  'book':           'B',
+  /* C — Cup */
+  'cup':            'C',
+  /* D — Domino Box (small flat rectangular box proxy) */
+  'remote':         'D',
+  /* E — Elephant Toy (soft toy proxy) */
+  'teddy bear':     'E',
+  /* F — Dental Floss (small round container proxy) */
+  'bowl':           'F',
+  /* G — Sunglasses */
+  'glasses':        'G',
+  /* H — Headphones */
+  'headphones':     'H',
+  /* I — University ID Card (flat card — laptop as proxy) */
+  'laptop':         'I',
+  /* J — Fish Oil Jar */
+  'bottle':         'J',
+  /* K — Electric Kettle (kitchen appliance proxy) */
+  'toaster':        'K',
+  /* L — Green Porous Object (small round object proxy) */
+  'orange':         'L',
+  /* M — Computer Mouse */
+  'mouse':          'M',
+  /* N — Newspaper */
+  'newspaper':      'N',
+  /* O — Oven Mitt (hand-shaped mitt proxy) */
+  'baseball glove': 'O',
+  /* P — Pencil (long thin stick proxy) */
+  'baseball bat':   'P',
+  /* Q — Cotton Swab (small stick proxy) */
+  'toothbrush':     'Q',
+  /* R — Remote Control */
+  'tv remote':      'R',   // fallback label some models use
+  /* S — Scissors */
+  'scissors':       'S',
+  /* T — Tablets/pills (small round flat objects proxy) */
+  'frisbee':        'T',
+  /* U — Umbrella */
+  'umbrella':       'U',
+  /* V — Vase */
+  'vase':           'V',
+  /* W — USB-C Wires (cord proxy) */
+  'kite':           'W',
+  /* X — Xylophone (keyed instrument proxy) */
+  'keyboard':       'X',
+  /* Y — Yarn Ball (round ball proxy) */
+  'sports ball':    'Y',
+  /* Z — Zip Ties */
+  'tie':            'Z',
+};
+
+/* Display names shown on the goodbye screen */
+const NAMES = {
+  A:'Apple',        B:'Binder',       C:'Cup',          D:'Domino Box',
+  E:'Elephant Toy', F:'Dental Floss', G:'Sunglasses',   H:'Headphones',
+  I:'ID Card',      J:'Fish Oil Jar', K:'Kettle',       L:'Porous Object',
+  M:'Mouse',        N:'Newspaper',    O:'Oven Mitt',     P:'Pencil',
+  Q:'Cotton Swab',  R:'Remote',       S:'Scissors',     T:'Tablets',
+  U:'Umbrella',     V:'Vase',         W:'USB Wires',     X:'Xylophone',
+  Y:'Yarn Ball',    Z:'Zip Ties',
+};
+
+/* Full list of COCO-SSD class names that are allowed.
+   Anything detected that is NOT in this set → "try another object" */
+const ALLOWED_COCO = new Set(Object.keys(OBJ_MAP));
+
+/* ══════════════════════════════════════════════════
+   CONFIG
+══════════════════════════════════════════════════ */
+const CFG = {
+  holdMs:      1600,
+  cooldownMs:  2200,
+  inferMs:     450,
+  minConf:     0.50,
+  personConf:  0.45,
+  goodbyeMs:   6000,
+  waveHoldMs:  1400,   // ms of confirmed bilateral wave to trigger end
+};
+
+/* ══════════════════════════════════════════════════
+   STATE
+══════════════════════════════════════════════════ */
+let model = null, camStream = null;
+let running = false, isCooldown = false;
+let currentObj = null, holdStart = null;
+let waveStart  = null;
+let inferTimer = null;
+let captures   = [];
+
+/* Wave detection state */
+let prevGrayData  = null;    // previous grayscale frame
+let waveFramesBuf = [];      // rolling window of per-frame motion scores
+const WAVE_FRAME_WINDOW = 12; // how many frames to look back
+
+/* ══════════════════════════════════════════════════
+   DOM
+══════════════════════════════════════════════════ */
+const $ = id => document.getElementById(id);
+const sLoad=document.querySelector('#s-load'), sStart=$('s-start'), sCam=$('s-cam');
+const loadFill=$('load-fill'), loadMsg=$('load-msg');
+const bgLtr=$('bg-ltr'), btnBegin=$('btn-begin'), statusLbl=$('status-lbl');
+const video=$('video'), ovl=$('ovl'), octx=ovl.getContext('2d');
+const waveCanvas=$('wave-canvas'), wctx=waveCanvas.getContext('2d');
+const instrEl=$('instr'), detPill=$('det-pill'), badPill=$('bad-pill');
+const holdWrap=$('hold-wrap'), hFg=$('h-fg'), hLbl=$('h-lbl');
+const waveOvr=$('wave-ovr'), wrFg=$('wr-fg');
+const camFlash=$('cam-flash'), letterBar=$('letter-bar');
+const rScroll=$('r-scroll'), rCount=$('r-count'), waveHintBar=$('wave-hint-bar');
+const goodbyeOvr=$('goodbye-ovr'), byeStrip=$('bye-strip'), byeTimer=$('bye-timer');
+
+/* ══════════════════════════════════════════════════
+   SCREENS
+══════════════════════════════════════════════════ */
+let curScreen = sLoad;
+function goTo(s) { curScreen.classList.remove('active'); s.classList.add('active'); curScreen = s; }
+
+let bgIdx = 0;
+setInterval(() => { bgIdx=(bgIdx+1)%26; bgLtr.textContent=String.fromCharCode(65+bgIdx); }, 1600);
+
+/* ══════════════════════════════════════════════════
+   LOAD MODEL
+══════════════════════════════════════════════════ */
+async function initModel() {
+  let p = 0;
+  const t = setInterval(() => { p=Math.min(p+1.5,88); loadFill.style.width=p+'%'; }, 55);
+  model = await cocoSsd.load({ base: 'mobilenet_v2' });
+  clearInterval(t); loadFill.style.width='100%'; loadMsg.textContent='Ready!';
+  await sleep(600); goTo(sStart);
+}
+
+/* ══════════════════════════════════════════════════
+   CAMERA
+══════════════════════════════════════════════════ */
+async function startCam() {
+  try {
+    camStream = await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:'user',width:{ideal:1280},height:{ideal:720}}, audio:false });
+  } catch(e) {
+    try { camStream = await navigator.mediaDevices.getUserMedia({video:true,audio:false}); }
+    catch(e2) { alert('Camera access needed — please allow and reload.'); return false; }
+  }
+  video.srcObject = camStream;
+  await new Promise(r => video.onloadedmetadata = r);
+  syncOvl(); video.addEventListener('resize', syncOvl);
+  return true;
+}
+function syncOvl() { ovl.width=video.videoWidth||640; ovl.height=video.videoHeight||480; }
+function stopCam() { if(camStream){camStream.getTracks().forEach(t=>t.stop());camStream=null;} video.srcObject=null; }
+
+/* ══════════════════════════════════════════════════
+   INFERENCE LOOP
+══════════════════════════════════════════════════ */
+function startLoop() { running=true; inferTimer=setInterval(runInfer,CFG.inferMs); }
+function stopLoop()  { running=false; clearInterval(inferTimer); inferTimer=null; }
+
+async function runInfer() {
+  if (!model||!running||video.readyState<2) return;
+  let preds;
+  try { preds = await model.detect(video); } catch(e) { return; }
+  drawOverlay(preds);
+  if (captures.length > 0) checkWave();
+  if (isCooldown) return;
+
+  // Separate predictions into: known (in our list) vs seen-but-wrong (COCO detects it but not our object)
+  const known   = preds.filter(p => OBJ_MAP[p.class] && p.score >= CFG.minConf).sort((a,b)=>b.score-a.score);
+  // "Seen but not our object" — COCO found something real (≥40% confidence) but it's not in our list
+  // Exclude 'person' since the user is always there
+  const notOurs = preds.filter(p =>
+    !OBJ_MAP[p.class] &&
+    p.class !== 'person' &&
+    p.score >= 0.40
+  );
+
+  if (known.length) {
+    // ── Good object found ──
+    hideBadPill();
+    const best=known[0], letter=OBJ_MAP[best.class];
+    showPill(best.class, letter);
+    setInstr(`Hold "${NAMES[letter]}" steady…`);
+    setStatus('Detecting');
+    if (currentObj!==best.class) { currentObj=best.class; holdStart=Date.now(); holdWrap.classList.add('show'); }
+    const held=Date.now()-holdStart, pct=Math.min(held/CFG.holdMs,1);
+    setRing(hFg,pct,45); hLbl.textContent=pct>=1?'📸 Capturing!':'Hold steady…';
+    if (held>=CFG.holdMs) doCapture(best.class, letter);
+
+  } else if (notOurs.length) {
+    // ── COCO sees something but it's not on our table ──
+    resetHold(); hidePill(); setStatus('Try another');
+    showBadPill(notOurs[0].class);
+    setInstr('That object isn\'t on the list — try a different one!');
+
+  } else {
+    // ── Nothing detected at all ──
+    resetHold(); hidePill(); hideBadPill(); setStatus('Ready');
+    setInstr(captures.length===0
+      ? 'Hold up an object from the table'
+      : 'Hold up your next object — or wave both hands 👋👋');
+  }
+}
+
+/* ══════════════════════════════════════════════════
+   WAVE DETECTION — bilateral two-hand optical flow
+   ─────────────────────────────────────────────────
+   REQUIREMENT: both hands must be waving simultaneously.
+
+   APPROACH:
+   Every tick we downscale the frame to 64×36 px and
+   compute a per-pixel brightness diff vs the previous
+   frame. We then split the frame into:
+     • LEFT  ZONE  — left  third of the frame, upper half
+     • RIGHT ZONE  — right third of the frame, upper half
+     • CENTRE ZONE — middle third (where body/torso sits)
+
+   A "two-hand wave" requires:
+     1. LEFT zone motion  ≥ LEFT_FRAC  of its pixels moving
+     2. RIGHT zone motion ≥ RIGHT_FRAC of its pixels moving
+     3. Both conditions true in the SAME frame
+     4. This bilateral active state sustained across
+        ≥ MIN_BILATERAL_FRAMES of the rolling window
+     5. Then waveStart timer must reach waveHoldMs
+
+   WHY THIS WORKS:
+   - One hand wave → only ONE zone lights up → rejected
+   - Body sway / nodding → centre moves, not both sides → rejected
+   - Both hands waving → both outer zones active → accepted
+   - Waving one hand then switching → never simultaneous → rejected
+══════════════════════════════════════════════════ */
+
+/* Tuning constants for bilateral wave */
+const BW = 64, BH = 36;              // downscale resolution
+const ZONE_H_FRAC  = 0.55;           // use top 55% of rows (hand/shoulder height)
+const MOTION_THR   = 18;             // brightness diff to count a pixel as "moving"
+const LEFT_FRAC    = 0.10;           // fraction of left-zone pixels that must move
+const RIGHT_FRAC   = 0.10;           // fraction of right-zone pixels that must move
+const FRAME_WINDOW = 14;             // rolling window size
+const MIN_BILATERAL_FRAMES = 5;      // frames in window where BOTH sides moved
+
+function checkWave() {
+  /* ── Downscale frame into wave canvas ── */
+  waveCanvas.width = BW; waveCanvas.height = BH;
+  wctx.save();
+  wctx.translate(BW, 0); wctx.scale(-1, 1);   // mirror to match video
+  wctx.drawImage(video, 0, 0, BW, BH);
+  wctx.restore();
+
+  const frame  = wctx.getImageData(0, 0, BW, BH);
+  const pixels = frame.data;
+
+  /* ── Greyscale ── */
+  const gray = new Uint8Array(BW * BH);
+  for (let i = 0; i < BW * BH; i++) {
+    gray[i] = (pixels[i*4]*77 + pixels[i*4+1]*150 + pixels[i*4+2]*29) >> 8;
+  }
+
+  if (!prevGrayData) { prevGrayData = gray; return; }
+
+  /* ── Define zones ──
+     Frame is split into thirds horizontally.
+     We only look at the top ZONE_H_FRAC rows.
+     LEFT  zone = cols 0          … BW/3
+     CENTRE zone = cols BW/3      … 2*BW/3   (not checked)
+     RIGHT zone = cols 2*BW/3     … BW
+  ── */
+  const rowsToCheck = Math.floor(BH * ZONE_H_FRAC);
+  const leftCols  = Math.floor(BW / 3);
+  const rightStart = Math.floor(2 * BW / 3);
+
+  let leftMoving = 0,  leftTotal  = 0;
+  let rightMoving = 0, rightTotal = 0;
+
+  for (let y = 0; y < rowsToCheck; y++) {
+    for (let x = 0; x < BW; x++) {
+      const idx  = y * BW + x;
+      const diff = Math.abs(gray[idx] - prevGrayData[idx]);
+      const moved = diff > MOTION_THR ? 1 : 0;
+
+      if (x < leftCols) {
+        leftMoving += moved;
+        leftTotal++;
+      } else if (x >= rightStart) {
+        rightMoving += moved;
+        rightTotal++;
+      }
+    }
+  }
+
+  prevGrayData = gray;
+
+  const leftScore  = leftTotal  > 0 ? leftMoving  / leftTotal  : 0;
+  const rightScore = rightTotal > 0 ? rightMoving / rightTotal : 0;
+
+  /* Both zones must be active in the SAME frame */
+  const bilateralActive = leftScore >= LEFT_FRAC && rightScore >= RIGHT_FRAC;
+
+  /* Rolling window of bilateral frames */
+  waveFramesBuf.push(bilateralActive ? 1 : 0);
+  if (waveFramesBuf.length > FRAME_WINDOW) waveFramesBuf.shift();
+
+  const bilateralCount = waveFramesBuf.reduce((a, b) => a + b, 0);
+  const isWaving = bilateralCount >= MIN_BILATERAL_FRAMES;
+
+  if (isWaving) {
+    if (!waveStart) waveStart = Date.now();
+    const pct = Math.min((Date.now() - waveStart) / CFG.waveHoldMs, 1);
+    setWaveRing(pct);
+    waveOvr.classList.add('show');
+    if (Date.now() - waveStart >= CFG.waveHoldMs) showGoodbye();
+  } else {
+    waveStart = null;
+    setWaveRing(0);
+    waveOvr.classList.remove('show');
+  }
+}
+
+function resetWaveState() {
+  prevGrayData = null; waveFramesBuf = [];
+  waveStart = null; setWaveRing(0);
+  waveOvr.classList.remove('show');
+}
+
+/* ══════════════════════════════════════════════════
+   CAPTURE
+══════════════════════════════════════════════════ */
+function doCapture(objName, letter) {
+  isCooldown=true; currentObj=null; holdStart=null;
+  resetWaveState();
+
+  const cap=document.createElement('canvas');
+  cap.width=video.videoWidth; cap.height=video.videoHeight;
+  const cctx=cap.getContext('2d');
+  cctx.translate(cap.width,0); cctx.scale(-1,1); cctx.drawImage(video,0,0);
+  const dataURL=cap.toDataURL('image/jpeg',0.85);
+
+  captures.push({letter,obj:objName,dataURL});
+  doFlash(); beep();
+  addToBar(letter); addSnap(dataURL,letter);
+  rCount.textContent=captures.length; rCount.classList.add('show');
+  waveHintBar.classList.add('show');
+  resetHold(); hidePill(); hideBadPill();
+  setStatus('Got '+letter);
+  setInstr(`${letter} — great! Next object, or wave both hands to finish 👋`);
+  setTimeout(()=>{ isCooldown=false; setStatus('Ready'); }, CFG.cooldownMs);
+}
+
+/* ══════════════════════════════════════════════════
+   GOODBYE
+══════════════════════════════════════════════════ */
+function showGoodbye() {
+  stopLoop(); running=false;
+  const byeNameRow=$('bye-name-row');
+  byeNameRow.innerHTML='';
+  captures.forEach((c,i)=>{
+    const s=document.createElement('span');
+    s.className='bye-name-ltr'; s.textContent=c.letter;
+    s.style.animationDelay=(i*.08)+'s';
+    byeNameRow.appendChild(s);
+  });
+  byeStrip.innerHTML='';
+  captures.forEach((c,i)=>{
+    const card=document.createElement('div'); card.className='bye-card';
+    card.style.animationDelay=(.3+i*.09)+'s';
+    const wrap=document.createElement('div'); wrap.className='bye-photo-wrap';
+    const img=document.createElement('img'); img.src=c.dataURL; img.alt=c.obj; img.className='bye-photo';
+    wrap.appendChild(img);
+    const ltr=document.createElement('div'); ltr.className='bye-ltr'; ltr.textContent=c.letter;
+    const obj=document.createElement('div'); obj.className='bye-obj'; obj.textContent=NAMES[c.letter]||c.obj;
+    card.appendChild(wrap); card.appendChild(ltr); card.appendChild(obj);
+    byeStrip.appendChild(card);
+  });
+  goodbyeOvr.classList.add('show');
+  let secs=Math.round(CFG.goodbyeMs/1000); byeTimer.textContent=secs;
+  const cd=setInterval(()=>{ secs--; byeTimer.textContent=Math.max(secs,0); if(secs<=0)clearInterval(cd); },1000);
+  setTimeout(()=>{ goodbyeOvr.classList.remove('show'); stopCam(); resetSession(); goTo(sStart); }, CFG.goodbyeMs);
+}
+
+/* ══════════════════════════════════════════════════
+   DRAW OVERLAY
+══════════════════════════════════════════════════ */
+function drawOverlay(preds) {
+  const W=ovl.width, H=ovl.height;
+  octx.clearRect(0,0,W,H);
+  /* Detection zone */
+  const zx=W*.1,zy=H*.07,zw=W*.8,zh=H*.73;
+  octx.save();
+  octx.strokeStyle='rgba(255,255,255,.1)'; octx.lineWidth=1.5; octx.setLineDash([10,8]);
+  rrect(octx,zx,zy,zw,zh,14); octx.stroke(); octx.setLineDash([]);
+  octx.strokeStyle='rgba(255,255,255,.4)'; octx.lineWidth=2.5;
+  bkt(octx,zx,zy,24,'tl'); bkt(octx,zx+zw,zy,24,'tr');
+  bkt(octx,zx,zy+zh,24,'bl'); bkt(octx,zx+zw,zy+zh,24,'br');
+  octx.restore();
+  preds.forEach(p=>{
+    if (p.class==='person') return; // skip person bbox
+    const [x,y,w,h]=p.bbox, mx=W-x-w;
+    if (OBJ_MAP[p.class] && p.score>=CFG.minConf) {
+      // ── Known object: solid red box + yellow letter badge ──
+      octx.strokeStyle='#E8321A'; octx.lineWidth=2.5; octx.strokeRect(mx,y,w,h);
+      const L=OBJ_MAP[p.class],bw=32,bh=24;
+      octx.fillStyle='#F5C800'; octx.fillRect(mx,y-bh,bw,bh);
+      octx.strokeStyle='#111'; octx.lineWidth=1.5; octx.strokeRect(mx,y-bh,bw,bh);
+      octx.fillStyle='#111'; octx.font='bold 14px "Archivo Black",sans-serif';
+      octx.textAlign='center'; octx.fillText(L,mx+bw/2,y-7); octx.textAlign='left';
+    } else if (p.score>=0.40) {
+      // ── Seen but not on our list: dashed grey box ──
+      octx.save();
+      octx.strokeStyle='rgba(255,255,255,0.3)'; octx.lineWidth=1.5;
+      octx.setLineDash([5,5]); octx.strokeRect(mx,y,w,h);
+      octx.restore();
+    }
+  });
+}
+function rrect(ctx,x,y,w,h,r){
+  ctx.beginPath(); ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y); ctx.arcTo(x+w,y,x+w,y+r,r);
+  ctx.lineTo(x+w,y+h-r); ctx.arcTo(x+w,y+h,x+w-r,y+h,r);
+  ctx.lineTo(x+r,y+h); ctx.arcTo(x,y+h,x,y+h-r,r);
+  ctx.lineTo(x,y+r); ctx.arcTo(x,y,x+r,y,r); ctx.closePath();
+}
+function bkt(ctx,ox,oy,len,pos){
+  ctx.beginPath();
+  if(pos==='tl'){ctx.moveTo(ox+len,oy);ctx.lineTo(ox,oy);ctx.lineTo(ox,oy+len);}
+  if(pos==='tr'){ctx.moveTo(ox-len,oy);ctx.lineTo(ox,oy);ctx.lineTo(ox,oy+len);}
+  if(pos==='bl'){ctx.moveTo(ox,oy-len);ctx.lineTo(ox,oy);ctx.lineTo(ox+len,oy);}
+  if(pos==='br'){ctx.moveTo(ox-len,oy);ctx.lineTo(ox,oy);ctx.lineTo(ox,oy-len);}
+  ctx.stroke();
+}
+
+/* ══════════════════════════════════════════════════
+   UI HELPERS
+══════════════════════════════════════════════════ */
+function setInstr(t){instrEl.textContent=t;}
+function setStatus(t){statusLbl.textContent=t;}
+function showPill(obj,ltr){detPill.textContent=`${obj} → ${ltr}`;detPill.classList.add('show');}
+function hidePill(){detPill.classList.remove('show');}
+function showBadPill(cls){
+  badPill.innerHTML=`That's a <strong>${cls}</strong> — not on the list! Try another 🤔`;
+  badPill.classList.add('show');
+}
+function hideBadPill(){badPill.classList.remove('show');}
+function setRing(el,pct,r){const c=2*Math.PI*r;el.style.strokeDashoffset=c-c*pct;}
+function setWaveRing(pct){setRing(wrFg,pct,30);}
+function resetHold(){currentObj=null;holdStart=null;holdWrap.classList.remove('show');setRing(hFg,0,45);}
+function addToBar(letter){
+  const s=document.createElement('span'); s.className='bar-ltr'; s.textContent=letter;
+  const cursor=letterBar.querySelector('.bar-cursor'); letterBar.insertBefore(s,cursor);
+}
+function addSnap(dataURL,letter){
+  const card=document.createElement('div'); card.className='snap';
+  const img=document.createElement('img'); img.src=dataURL; img.alt=letter;
+  const badge=document.createElement('div'); badge.className='snap-badge';
+  const lbl=document.createElement('div'); lbl.className='snap-ltr'; lbl.textContent=letter;
+  badge.appendChild(lbl); card.appendChild(img); card.appendChild(badge); rScroll.prepend(card);
+}
+function doFlash(){camFlash.classList.remove('go');void camFlash.offsetWidth;camFlash.classList.add('go');}
+function beep(){
+  try{const ac=new(window.AudioContext||window.webkitAudioContext)();
+  const o=ac.createOscillator(),g=ac.createGain();
+  o.connect(g);g.connect(ac.destination);o.frequency.value=1046;o.type='sine';
+  g.gain.setValueAtTime(.18,ac.currentTime);g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+.2);
+  o.start();o.stop(ac.currentTime+.2);}catch(e){}
+}
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+
+/* ══════════════════════════════════════════════════
+   SESSION RESET
+══════════════════════════════════════════════════ */
+function resetSession(){
+  captures=[]; isCooldown=false; currentObj=null; holdStart=null;
+  letterBar.innerHTML='<div class="bar-cursor"></div>';
+  rScroll.innerHTML=''; byeStrip.innerHTML='';
+  const bnr=$('bye-name-row'); if(bnr) bnr.innerHTML='';
+  rCount.textContent='0'; rCount.classList.remove('show');
+  waveHintBar.classList.remove('show');
+  goodbyeOvr.classList.remove('show');
+  resetHold(); hidePill(); hideBadPill(); resetWaveState();
+  setInstr('Hold up an object from the table'); setStatus('Ready');
+}
+
+/* ══════════════════════════════════════════════════
+   BUTTONS
+══════════════════════════════════════════════════ */
+btnBegin.addEventListener('click', async()=>{
+  resetSession(); goTo(sCam);
+  const ok=await startCam(); if(ok){syncOvl();startLoop();}
+});
+
+/* ══════════════════════════════════════════════════
+   BOOT
+══════════════════════════════════════════════════ */
+initModel();
+</script>
+</body>
+</html>
