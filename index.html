@@ -624,7 +624,7 @@ body::after {
 <div class="screen active" id="s-load">
   <div class="load-logo">Name<b>Builder</b></div>
   <div class="load-track"><div class="load-fill" id="load-fill"></div></div>
-  <div class="load-msg" id="load-msg">Loading AI…</div>
+  <div class="load-msg" id="load-msg">Loading…</div>
 </div>
 
 <!-- ════ START ════ -->
@@ -636,9 +636,9 @@ body::after {
   <div class="blob blob-3"></div>
   <div class="blob blob-4"></div>
   <div class="s-content">
-    <span class="s-tag">Object · Vision · Alphabet</span>
+    <span class="s-tag">Object · 2 · Alphabet</span>
     <h1 class="s-h1">Spell your<br><em>name</em> with<br>objects.</h1>
-    <p class="s-sub">Show objects to the camera — each one becomes a letter. Wave your hand to finish.</p>
+    <p class="s-sub">Show objects to the camera and watch each one becomes a letter. Wave your hand to finish.</p>
     <button class="btn-begin" id="btn-begin">Let's Go →</button>
   </div>
 </div>
@@ -682,7 +682,7 @@ body::after {
       <!-- Wave overlay — only shown when real wave detected -->
       <div class="wave-ovr" id="wave-ovr">
         <div class="wave-emoji">👋</div>
-        <div class="wave-h">Keep waving — both hands!</div>
+        <div class="wave-h">Keep waving, use both hands!</div>
         <div class="wave-sub">Wave both hands until the ring fills</div>
         <svg class="wr-svg" width="74" height="74" viewBox="0 0 74 74">
           <circle class="wr-bg" cx="37" cy="37" r="30"/>
@@ -780,61 +780,61 @@ const OBJ_MAP = {
   /* C — Cup */
   'cup':            'C',
   /* D — Domino Box (small flat rectangular box proxy) */
-  'remote':         'D',
+  'Domino':         'D',
   /* E — Elephant Toy (soft toy proxy) */
-  'teddy bear':     'E',
+  'Elephant':     'E',
   /* F — Dental Floss (small round container proxy) */
-  'bowl':           'F',
+  'Floss':           'F',
   /* G — Sunglasses */
   'glasses':        'G',
   /* H — Headphones */
   'headphones':     'H',
   /* I — University ID Card (flat card — laptop as proxy) */
-  'laptop':         'I',
+  'ID card':         'I',
   /* J — Fish Oil Jar */
-  'bottle':         'J',
+  'jar':         'J',
   /* K — Electric Kettle (kitchen appliance proxy) */
-  'toaster':        'K',
+  'kettel':        'K',
   /* L — Green Porous Object (small round object proxy) */
-  'orange':         'L',
+  'Lime':         'L',
   /* M — Computer Mouse */
   'mouse':          'M',
   /* N — Newspaper */
   'newspaper':      'N',
   /* O — Oven Mitt (hand-shaped mitt proxy) */
-  'baseball glove': 'O',
+  'Oven Mitt': 'O',
   /* P — Pencil (long thin stick proxy) */
-  'baseball bat':   'P',
+  'Pencil':   'P',
   /* Q — Cotton Swab (small stick proxy) */
-  'toothbrush':     'Q',
+  'Q-tip':     'Q',
   /* R — Remote Control */
-  'tv remote':      'R',   // fallback label some models use
+  'remote':      'R',   // fallback label some models use
   /* S — Scissors */
   'scissors':       'S',
   /* T — Tablets/pills (small round flat objects proxy) */
-  'frisbee':        'T',
+  'toothbrush':        'T',
   /* U — Umbrella */
   'umbrella':       'U',
   /* V — Vase */
   'vase':           'V',
   /* W — USB-C Wires (cord proxy) */
-  'kite':           'W',
+  'wires':           'W',
   /* X — Xylophone (keyed instrument proxy) */
   'keyboard':       'X',
   /* Y — Yarn Ball (round ball proxy) */
   'sports ball':    'Y',
   /* Z — Zip Ties */
-  'tie':            'Z',
+  'zip tie':            'Z',
 };
 
 /* Display names shown on the goodbye screen */
 const NAMES = {
-  A:'Apple',        B:'Binder',       C:'Cup',          D:'Domino Box',
-  E:'Elephant Toy', F:'Dental Floss', G:'Sunglasses',   H:'Headphones',
-  I:'ID Card',      J:'Fish Oil Jar', K:'Kettle',       L:'Porous Object',
+  A:'Apple',        B:'Book',       C:'Cup',          D:'Domino',
+  E:'Elephant Toy', F:'Floss', G:'Sunglasses',   H:'Headphones',
+  I:'ID Card',      J:'Jar', K:'Kettle',       L:'Lime',
   M:'Mouse',        N:'Newspaper',    O:'Oven Mitt',     P:'Pencil',
-  Q:'Cotton Swab',  R:'Remote',       S:'Scissors',     T:'Tablets',
-  U:'Umbrella',     V:'Vase',         W:'USB Wires',     X:'Xylophone',
+  Q:'Cotton Swab',  R:'Remote',       S:'Scissors',     T:'Toothbrush',
+  U:'Umbrella',     V:'Vase',         W:'Wires',     X:'Xylophone',
   Y:'Yarn Ball',    Z:'Zip Ties',
 };
 
